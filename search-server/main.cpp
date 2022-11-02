@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <numeric>
 
 using namespace std;
 
@@ -68,8 +69,6 @@ public:
         return FindTopDocuments(raw_query, predicat);
     }
 
-
-
     void SetStopWords(const string& text) {
         for (const string& word : SplitIntoWords(text)) {
             stop_words_.insert(word);
@@ -86,16 +85,15 @@ public:
         documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
     }
 
-
     template <typename Predicat>
     vector<Document> FindTopDocuments(const string& raw_query,
         Predicat predicat) const {
+        const double max_size = 1e-6;
         const Query query = ParseQuery(raw_query);
         auto matched_documents = FindAllDocuments(query, predicat);
-
         sort(matched_documents.begin(), matched_documents.end(),
-            [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+            [max_size](const Document& lhs, const Document& rhs) {
+                if (abs(lhs.relevance - rhs.relevance) < max_size) {
                     return lhs.rating > rhs.rating;
                 }
                 else {
@@ -164,10 +162,7 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0);
         return rating_sum / static_cast<int>(ratings.size());
     }
 
@@ -221,8 +216,9 @@ private:
                 continue;
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
-            for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {              
-                if (predicat(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
+            for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) { 
+                const auto& set = documents_.at(document_id);
+                if (predicat(document_id, set.status, set.rating)) {
                     document_to_relevance[document_id] += term_freq * inverse_document_freq;
                 }
             }
