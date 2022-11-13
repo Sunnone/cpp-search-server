@@ -37,6 +37,7 @@ void TestAddDocuments() {
     }
 }
 
+
 // Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
 void TestExcludeStopWordsFromAddedDocumentContent() {
     const int doc_id = 42;
@@ -50,6 +51,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
         const Document& doc0 = found_docs[0];
         ASSERT_EQUAL(doc0.id, doc_id);
     }
+
     {
         SearchServer server;
         server.SetStopWords("in the"s);
@@ -130,23 +132,48 @@ void TestRelevance() {
         server.AddDocument(doc3, content3, DocumentStatus::ACTUAL, ratings3);
         const auto find_docs = server.FindTopDocuments("cat in the city"s);
         ASSERT_HINT(find_docs[0].relevance > find_docs[1].relevance&& find_docs[1].relevance > find_docs[2].relevance, "Должны были в порядке убывания, но видимо нет");
+
     }
 }
 
 void TestRating() {
     const int doc1 = 1;
     const string content1 = "cat in the city"s;
-    const vector<int> ratings1 = { 2, 5 , 7 , 9 , 2};
+    const vector<int> ratings1 = { 2, 5 , 7 , 9 , 2 };
+    const int doc2 = 2;
+    const string content2 = "cat in the city"s;
+    const vector<int> ratings2 = { -4, -2, -1, -9 };
+    const int doc3 = 3;
+    const string content3 = "cat in the city"s;
+    const vector<int> ratings3 = { 2, -5 , 7 , -9 , 2, 5, -2 };
     {//Проверяем что правильно вычисляется рейтинг документа
         SearchServer server;
         server.AddDocument(doc1, content1, DocumentStatus::ACTUAL, ratings1);
         const auto find_docs = server.FindTopDocuments("cat in the city"s);
-        int rait = (2+5+7+9+2) / ratings1.size();
+        int size = ratings1.size();
+        int rait = (2 + 5 + 7 + 9 + 2) / size;
         ASSERT_EQUAL_HINT(find_docs[0].rating, rait, "Должно быть 3, но что то пошло не так");
     }
+    {// Тоже самое для отрицательных оценок
+        SearchServer server;
+        server.AddDocument(doc2, content2, DocumentStatus::ACTUAL, ratings2);
+        const auto find_docs = server.FindTopDocuments("cat in the city"s);
+         int size = ratings2.size();
+        int rait = (-4-2-1-9) / size;
+        ASSERT_EQUAL_HINT(find_docs[0].rating, rait, "Должно быть -4, но что то пошло не так");
+    }
+    {// Для смешанных оценок
+        SearchServer server;
+        server.AddDocument(doc3, content3, DocumentStatus::ACTUAL, ratings3);
+        const auto find_docs = server.FindTopDocuments("cat in the city"s);
+        int size = ratings3.size();
+        int rait = (2 - 5 + 7 - 9 + 2 + 5 - 2) / size;
+        ASSERT_EQUAL_HINT(find_docs[0].rating, rait, "Должно быть 0, но что то пошло не так");
+    }
+
 }
 
-void TestPredicat() {
+void TestPredicate() {
     const int doc1 = 1;
     const string content1 = "cat in the city"s;
     const vector<int> ratings1 = { 1, 2, 3 };
@@ -187,9 +214,16 @@ void TestStatus() {
         const auto find_docs = server.FindTopDocuments("cat in the city"s, DocumentStatus::BANNED);
         ASSERT(!find_docs.empty());
         ASSERT_EQUAL(find_docs[0].id, doc1);
+        //Проверим по остальным статусам
+        const auto find_docs1 = server.FindTopDocuments("cat in the city"s, DocumentStatus::ACTUAL);
+        ASSERT(!find_docs1.empty());
+        ASSERT_EQUAL(find_docs1[0].id, doc2);
+        const auto find_docs2 = server.FindTopDocuments("cat in the city"s, DocumentStatus::REMOVED);
+        ASSERT(!find_docs2.empty());
+        ASSERT_EQUAL(find_docs2[0].id, doc3);
         //Теперь проверим что не находит документ со статусом которого нет ни у одного документа
-        const auto find_docs1 = server.FindTopDocuments("cat in the city"s, DocumentStatus::IRRELEVANT);
-        ASSERT(find_docs1.empty());
+        const auto find_docs4 = server.FindTopDocuments("cat in the city"s, DocumentStatus::IRRELEVANT);
+        ASSERT(find_docs4.empty());
     }
 }
 
@@ -197,14 +231,18 @@ void TestCorrectCalcRelevance() {
     const int doc_id = 0;
     const string content = "белый кот и модный ошейник"s;
     const vector<int> ratings = { 8, -3 };
+    const int doc_id1 = 1;
+    const string content1 = "ухоженный пёс выразительные глаза"s;
+    const vector<int> ratings1 = { 5, -12, 2, 1 };
     {//Проверяем корректность вычисления релевантности
         SearchServer server;
         server.SetStopWords("и в на"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        server.AddDocument(doc_id1, content1, DocumentStatus::ACTUAL, ratings1);
         const auto find_doc = server.FindTopDocuments("пушистый ухоженный кот"s);
         double relevance_doc = 0.173287;
-	double setter = 1e6;
-        ASSERT((find_doc[0].relevance-relevance_doc) < setter);
+        double accuracy = 1e-6;     
+        ASSERT((abs(find_doc[0].relevance - relevance_doc)) < accuracy);
     }
 }
 
@@ -216,7 +254,7 @@ void TestSearchServer() {
     RUN_TEST(TestMatchDocument);
     RUN_TEST(TestRelevance);
     RUN_TEST(TestRating);
-    RUN_TEST(TestPredicat);
+    RUN_TEST(TestPredicate);
     RUN_TEST(TestStatus);
     RUN_TEST(TestCorrectCalcRelevance);
 }
