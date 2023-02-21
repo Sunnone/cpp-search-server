@@ -9,13 +9,13 @@ public:
     // сделаем "обёртки" для всех методов поиска, чтобы сохранять результаты для нашей статистики
     template <typename DocumentPredicate>
     std::vector<Document> AddFindRequest(const std::string& raw_query, DocumentPredicate document_predicate);
-    
+
     std::vector<Document> AddFindRequest(const std::string& raw_query, DocumentStatus status);
-    
+
     std::vector<Document> AddFindRequest(const std::string& raw_query);
-    
+
     int GetNoResultRequests() const;
-    
+
 private:
     void AddResult(const std::vector<Document>& query);
 
@@ -32,8 +32,8 @@ private:
 
 
 template <typename DocumentPredicate>
-    std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentPredicate document_predicate) {
-        std::vector<Document> query = double_server.FindTopDocuments(raw_query, document_predicate);
-        AddResult(query);
-        return query;
-    }
+std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentPredicate document_predicate) {
+    std::vector<Document> query = double_server.FindTopDocuments(raw_query, document_predicate);
+    AddResult(query);
+    return query;
+}
