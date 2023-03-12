@@ -1,5 +1,6 @@
 #include "search_server.h"
 
+
 using namespace std;
 
 SearchServer::SearchServer(const std::string& stop_words_text)
@@ -18,9 +19,10 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
     const double inv_word_count = 1.0 / words.size();
     for (const std::string& word : words) {
         word_to_document_freqs_[word][document_id] += inv_word_count;
+        id_word_freqs_[document_id][word] += inv_word_count;
     }
     documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
-    all_documents_.push_back(document_id);
+    docs_id_.insert(document_id);
 }
 
 std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
@@ -58,12 +60,14 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
     return { matched_words, documents_.at(document_id).status };
 }
 
+/*
 int SearchServer::GetDocumentId(int index) const {
     if (index < 0 || index > documents_.size()) {
         throw std::out_of_range("Нет документа с таким индексом"s);
     }
     return all_documents_[index];
-}
+}*/
+
 
 bool SearchServer::IsStopWord(const std::string& word) const {
     return stop_words_.count(word) > 0;
@@ -128,4 +132,34 @@ bool SearchServer::IsValidWord(const std::string& word) {
     return none_of(word.begin(), word.end(), [](char c) {
         return c >= '\0' && c < ' ';
         });
+}
+
+const map<string, double>& SearchServer::GetWordFrequencies(int document_id) const {
+    static map<std::string, double> empty = {};
+    if (id_word_freqs_.count(document_id)) {
+        return id_word_freqs_.at(document_id);
+    }
+    return empty;   
+}
+
+void SearchServer::RemoveDocument(int document_id) {
+    for (auto [word, _] : id_word_freqs_.at(document_id)) {
+        word_to_document_freqs_.at(word).erase(document_id);
+        if (word_to_document_freqs_.at(word).empty()) {
+            word_to_document_freqs_.erase(word);
+        }
+    }
+    documents_.erase(document_id);
+    id_word_freqs_.erase(document_id);
+    docs_id_.erase(document_id);
+
+}
+
+std::set<int>::const_iterator SearchServer::begin() {
+    return docs_id_.begin();
+}
+
+
+std::set<int>::const_iterator SearchServer::end() {
+    return docs_id_.end();
 }
